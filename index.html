@@ -6,6 +6,7 @@
   <title>VitalApp</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2e7d32">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;margin:18px;background:#f7f7f7;color:#222}
     h1{font-size:1.4em}
@@ -29,7 +30,7 @@
     <button id="pasteToInput" title="In Eingabefeld übernehmen">✏️ In Formular übernehmen</button>
   </div>
 
-  <p class="small">Falls die Browser-Spracherkennung auf deinem iPhone nicht funktioniert: tippe in das Feld unten und nutze das **iOS-Diktat** (Mikrofon-Taste in der Tastatur).</p>
+  <p class="small">Falls die Browser-Spracherkennung auf deinem iPhone nicht funktioniert: tippe in das Feld unten und nutze das <strong>iOS-Diktat</strong> (Mikrofon-Taste in der Tastatur).</p>
 
   <textarea id="manualInput" placeholder="Oder hier sprechen/ditieren (Diktier-Taste auf iOS-Tastatur)"></textarea>
 
@@ -80,25 +81,35 @@
       ta.value = (ta.value ? ta.value + "\n" : "") + txt;
     };
 
-    // --------- Parser (vereinfachte, robuste Erkennung) ----------
+    // --------- Verbesserter Parser ----------
     function parseVitaldaten(text) {
       text = (text || "").toLowerCase();
 
-      // Gewicht (z.B. "72,5 kg" oder "72.5 kg" oder "72 kg")
-      const g = text.match(/(\d{1,3}[.,]?\d?)\s*kg/) || text.match(/gewicht\s*(\d{1,3}[.,]?\d?)/);
-      // Blutdruck "120/80" oder "120 zu 80"
-      const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und|-)\s*(\d{2,3})/);
-      // Puls "Puls 68"
-      const p = text.match(/puls\s*(\d{2,3})/) || text.match(/\b(\d{2,3})\s*bpm\b/);
+      // Gewicht: 72,5 kg | 72 kg | 72 kilo
+      const g = text.match(/(\d{1,3}[.,]?\d?)\s*(kg|kilo)?/);
+
+      // Blutdruck: 120/80 | 120 zu 80 | 120 80
+      const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und| )\s*(\d{2,3})/);
+
+      // Puls: "Puls 68" | "mein Puls ist 68" | "68 bpm"
+      const p = text.match(/puls\s*(\d{2,3})/) ||
+                text.match(/(\d{2,3})\s*bpm/) ||
+                text.match(/puls\s*ist\s*(\d{2,3})/);
 
       if (!g || !bp || !p) return null;
 
-      const gewicht = parseFloat(g[1].replace(',', '.'));
+      const gewicht = parseFloat(g[1].replace(",", "."));
       const syst = parseInt(bp[1]);
       const diast = parseInt(bp[2]);
       const puls = parseInt(p[1]);
 
-      return { datum: new Date().toISOString(), gewicht, systolisch: syst, diastolisch: diast, puls };
+      return {
+        datum: new Date().toISOString(),
+        gewicht,
+        systolisch: syst,
+        diastolisch: diast,
+        puls
+      };
     }
 
     // --------- Speichern / Rendern ----------
@@ -115,7 +126,6 @@
     }
 
     document.getElementById("save").onclick = () => {
-      // Priorität: manuelles Feld (Diktat) falls befüllt, sonst erkannter Text
       const manual = document.getElementById("manualInput").value.trim();
       const textToParse = manual || recognizedText;
       if (!textToParse) { alert("Kein Text zum Speichern."); return; }
