@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VitalApp</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2e7d32">
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;margin:18px;background:#f7f7f7;color:#222}
+    h1{font-size:1.4em}
+    button{padding:10px;border-radius:8px;border:none;font-size:15px;margin:6px 4px;cursor:pointer}
+    #start{background:#2e7d32;color:#fff} #stop{background:#b71c1c;color:#fff} #save{background:#1565c0;color:#fff}
+    #recognized{padding:10px;background:#eee;border-radius:8px;min-height:48px}
+    textarea{width:100%;min-height:80px;padding:8px;border-radius:8px;border:1px solid #ddd;margin-top:8px}
+    ul{list-style:none;padding:0}
+    li{background:#fff;padding:10px;border-radius:8px;margin:6px 0}
+    .small{font-size:0.9em;color:#666}
+  </style>
+</head>
+<body>
+  <h1>Vitaldaten (PWA)</h1>
+  <div id="recognized" aria-live="polite">Noch nichts erkannt…</div>
+
+  <div style="margin-top:8px">
+    <button id="start">🎤 Aufnehmen</button>
+    <button id="stop">⏹️ Stoppen</button>
+    <button id="save">💾 Speichern</button>
+    <button id="pasteToInput" title="In Eingabefeld übernehmen">✏️ In Formular übernehmen</button>
+  </div>
+
+  <p class="small">Falls die Browser-Spracherkennung auf deinem iPhone nicht funktioniert: tippe in das Feld unten und nutze das **iOS-Diktat** (Mikrofon-Taste in der Tastatur).</p>
+
+  <textarea id="manualInput" placeholder="Oder hier sprechen/ditieren (Diktier-Taste auf iOS-Tastatur)"></textarea>
+
+  <h2>Gespeicherte Einträge</h2>
+  <ul id="entries"></ul>
+
+  <script>
+    // --------- Speech recognition (falls verfügbar) ----------
+    let recognition = null;
+    let isRecording = false;
+    let recognizedText = "";
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SR();
+      recognition.lang = "de-DE";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event) => {
+        let text = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          text += event.results[i][0].transcript;
+        }
+        recognizedText = text;
+        document.getElementById("recognized").textContent = text;
+      };
+
+      recognition.onerror = (e) => {
+        console.warn("Recognition error", e);
+      };
+    } else {
+      console.info("Keine Web Speech API im Browser verfügbar");
+    }
+
+    document.getElementById("start").onclick = () => {
+      if (!recognition) { alert("Spracherkennung nicht unterstützt. Nutze das iOS-Diktat im Eingabefeld."); return; }
+      if (!isRecording) { recognition.start(); isRecording = true; }
+    };
+    document.getElementById("stop").onclick = () => {
+      if (recognition && isRecording) { recognition.stop(); isRecording = false; }
+    };
+
+    // --------- Fallback: Übernehme erkannten Text ins Textfeld ----------
+    document.getElementById("pasteToInput").onclick = () => {
+      const txt = recognizedText || "";
+      const ta = document.getElementById("manualInput");
+      ta.value = (ta.value ? ta.value + "\n" : "") + txt;
+    };
+
+    // --------- Parser (vereinfachte, robuste Erkennung) ----------
+    function parseVitaldaten(text) {
+      text = (text || "").toLowerCase();
+
+      // Gewicht (z.B. "72,5 kg" oder "72.5 kg" oder "72 kg")
+      const g = text.match(/(\d{1,3}[.,]?\d?)\s*kg/) || text.match(/gewicht\s*(\d{1,3}[.,]?\d?)/);
+      // Blutdruck "120/80" oder "120 zu 80"
+      const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und|-)\s*(\d{2,3})/);
+      // Puls "Puls 68"
+      const p = text.match(/puls\s*(\d{2,3})/) || text.match(/\b(\d{2,3})\s*bpm\b/);
+
+      if (!g || !bp || !p) return null;
+
+      const gewicht = parseFloat(g[1].replace(',', '.'));
+      const syst = parseInt(bp[1]);
+      const diast = parseInt(bp[2]);
+      const puls = parseInt(p[1]);
+
+      return { datum: new Date().toISOString(), gewicht, systolisch: syst, diastolisch: diast, puls };
+    }
+
+    // --------- Speichern / Rendern ----------
+    function renderEntries() {
+      const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
+      const ul = document.getElementById("entries");
+      ul.innerHTML = "";
+      entries.forEach(e => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${new Date(e.datum).toLocaleString()}</strong><br>
+          Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm`;
+        ul.appendChild(li);
+      });
+    }
+
+    document.getElementById("save").onclick = () => {
+      // Priorität: manuelles Feld (Diktat) falls befüllt, sonst erkannter Text
+      const manual = document.getElementById("manualInput").value.trim();
+      const textToParse = manual || recognizedText;
+      if (!textToParse) { alert("Kein Text zum Speichern."); return; }
+      const parsed = parseVitaldaten(textToParse);
+      if (!parsed) { alert("Keine Vitaldaten im Text erkannt. Beispiel: '72,5 kg, Blutdruck 120 zu 80, Puls 68'"); return; }
+      const arr = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
+      arr.unshift(parsed);
+      localStorage.setItem("vitaldaten", JSON.stringify(arr));
+      document.getElementById("manualInput").value = "";
+      recognizedText = "";
+      document.getElementById("recognized").textContent = "Noch nichts erkannt…";
+      renderEntries();
+    };
+
+    renderEntries();
+
+    // --------- Service Worker registrieren (für Offline) ----------
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js').catch(e => console.warn("SW failed", e));
+    }
+  </script>
+</body>
+</html>
