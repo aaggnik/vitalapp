@@ -1,43 +1,59 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VitalApp Graph</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>VitalApp - Graph</title>
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
 <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
 <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  body { font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; margin:20px; background:#f7f7f7; color:#222; }
-  h1 { font-size:1.5em; margin-bottom:10px; }
-  button { padding:10px 14px; border-radius:8px; border:none; font-size:15px; margin:5px; cursor:pointer; }
-  #start {background:#2e7d32;color:#fff} 
-  #stop {background:#b71c1c;color:#fff} 
-  #save {background:#1565c0;color:#fff} 
-  #clear {background:#6d4c41;color:#fff} 
-  #chartContainer { background:#fff; border-radius:10px; padding:10px; margin-bottom:20px; }
-  #entries { list-style:none; padding:0; margin-top:20px; }
-  li { background:#fff; padding:10px; border-radius:8px; margin:6px 0; display:flex; justify-content:space-between; align-items:center; }
-  .delete-btn { background:#d32f2f;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer; }
-  .checkboxes { margin-top:10px; }
-  .timeframes { margin-bottom:10px; }
+  :root{--card-bg:#fff;--accent:#2e7d32}
+  body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;margin:14px;background:#f3f4f6;color:#111}
+  h1{font-size:1.2rem;margin:0 0 8px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  button{padding:8px 10px;border-radius:8px;border:none;font-size:14px;cursor:pointer}
+  .btn-start{background:var(--accent);color:#fff}
+  .btn-stop{background:#c62828;color:#fff}
+  .btn-save{background:#1565c0;color:#fff}
+  .btn-clear{background:#6d4c41;color:#fff}
+  textarea#recognized{width:100%;min-height:56px;padding:10px;border-radius:8px;border:1px solid #d1d5db;background:var(--card-bg);resize:vertical;font-size:14px}
+  /* Chart area small/mobile friendly */
+  #chartBox{background:var(--card-bg);border-radius:10px;padding:8px;margin-top:12px}
+  .timeframe-row{display:flex;gap:6px;justify-content:flex-start;margin-bottom:6px;flex-wrap:wrap}
+  .timeframe-row button{padding:6px 8px;font-size:13px}
+  #vitalChart{width:100%;height:170px} /* small height so fits on one screen */
+  .metric-row{display:flex;gap:10px;justify-content:flex-start;margin-top:8px;flex-wrap:wrap}
+  .metric-row label{font-size:14px}
+  /* saved entries */
+  #entries{list-style:none;padding:0;margin-top:14px}
+  #entries li{background:var(--card-bg);padding:10px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;font-size:14px}
+  .delete-btn{background:#d32f2f;color:#fff;border:none;border-radius:6px;padding:6px 8px;cursor:pointer}
+  .active { box-shadow:0 0 0 2px rgba(0,0,0,0.08) inset; }
+  .small{font-size:12px;color:#6b7280}
+  @media(min-width:600px){ #vitalChart{height:220px} }
 </style>
 </head>
 <body>
 
-<h1>Vitaldaten Graph</h1>
+<h1>Vitaldaten</h1>
 
-<div>
-  <button id="start">🎤 Aufnehmen</button>
-  <button id="stop">⏹️ Stoppen</button>
-  <button id="save">💾 Speichern</button>
-  <button id="clear">🧹 Clear</button>
+<!-- Controls -->
+<div class="controls">
+  <button id="start" class="btn-start">🎤 Aufnehmen</button>
+  <button id="stop" class="btn-stop">⏹️ Stoppen</button>
+  <button id="save" class="btn-save">💾 Speichern</button>
+  <button id="clear" class="btn-clear">🧹 Clear</button>
 </div>
 
-<div id="chartContainer">
-  <div class="timeframes">
+<!-- Editierbares Textfeld (erkannter Text / kann manuell editiert werden) -->
+<textarea id="recognized" placeholder="Erkannter Text erscheint hier – du kannst ihn editieren bevor du speicherst."></textarea>
+
+<!-- Chart box -->
+<div id="chartBox">
+  <div class="timeframe-row" id="timeframes">
     <button class="timeframe-btn" data-range="7">1W</button>
     <button class="timeframe-btn" data-range="30">1M</button>
     <button class="timeframe-btn" data-range="90">3M</button>
@@ -47,171 +63,376 @@
 
   <canvas id="vitalChart"></canvas>
 
-  <div class="checkboxes">
-    <label><input type="checkbox" class="metric" value="gewicht" checked> Gewicht</label>
-    <label><input type="checkbox" class="metric" value="blutdruck" checked> Blutdruck</label>
-    <label><input type="checkbox" class="metric" value="puls" checked> Puls</label>
+  <div class="metric-row" id="metricSelectors" style="margin-top:8px">
+    <label><input type="radio" name="metric" value="gewicht" checked> Gewicht</label>
+    <label><input type="radio" name="metric" value="puls"> Puls</label>
+    <label><input type="radio" name="metric" value="blutdruck"> Blutdruck</label>
   </div>
 </div>
 
-<h2>Gespeicherte Einträge</h2>
+<h2 style="margin-top:14px">Gespeicherte Einträge</h2>
 <ul id="entries"></ul>
 
 <script>
-  // ------------------ Spracherkennung ------------------
-  let recognition = null;
-  let isRecording = false;
-  let recognizedText = "";
+/* ------------------ Utilities ------------------ */
+function formatDDMM(date){ // 18.09.
+  const d = date.getDate().toString().padStart(2,'0');
+  const m = (date.getMonth()+1).toString().padStart(2,'0');
+  return `${d}.${m}.`;
+}
+function formatMMYY(date){ // 08.25
+  const m = (date.getMonth()+1).toString().padStart(2,'0');
+  const y = date.getFullYear().toString().slice(-2);
+  return `${m}.${y}`;
+}
+function startOfDay(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function toISODateStr(d){ return d.toISOString().slice(0,10); } // YYYY-MM-DD
 
-  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SR();
-    recognition.lang = "de-DE";
-    recognition.continuous = true;
-    recognition.interimResults = true;
+/* ------------------ Speech recognition (keeps appended final transcripts) ------------------ */
+let recognition = null;
+let isRecording = false;
+if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'de-DE';
+  recognition.continuous = true;
+  recognition.interimResults = true;
 
-    recognition.onresult = (event) => {
-      let finalText = recognizedText;
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalText += " " + transcript;
-        } else {
-          interim += " " + transcript;
-        }
+  recognition.onresult = (event) => {
+    // keep current manual edits (user may edit during interim) - we append final results to current value
+    let cur = document.getElementById('recognized').value.trim();
+    let interim = '';
+    for(let i = event.resultIndex; i < event.results.length; i++){
+      const t = event.results[i][0].transcript;
+      if(event.results[i].isFinal){
+        cur = (cur + ' ' + t).trim();
+      } else {
+        interim += ' ' + t;
       }
-      recognizedText = finalText.trim();
-      console.log("Zwischentext:", finalText + interim);
+    }
+    document.getElementById('recognized').value = (cur + ' ' + interim).trim();
+  };
+}
+
+/* ------------------ Parser (robust) ------------------ */
+function parseVitaldaten(text){
+  text = (text||'').toLowerCase();
+  // Gewicht: find number with optional comma/point and kg/kilo word or 'gewicht' prefix
+  const gMatch = text.match(/(?:gewicht[:\s]*)?(\d{1,3}[.,]?\d?)\s*(kg|kilo)?/);
+  // Blutdruck: 120/80 or 120 zu 80 or "120 80"
+  const bpMatch = text.match(/(\d{2,3})\s*(?:\/|zu|und|-|\s)\s*(\d{2,3})/);
+  // Puls: "puls 68" or "68 bpm" or "puls ist 68"
+  const pMatch = text.match(/puls\s*(?:ist\s*)?(\d{2,3})/) || text.match(/\b(\d{2,3})\s*bpm\b/);
+  if(!gMatch || !bpMatch || !pMatch) return null;
+  const gewicht = parseFloat(gMatch[1].replace(',','.'));
+  const syst = parseInt(bpMatch[1]);
+  const diast = parseInt(bpMatch[2]);
+  const puls = parseInt(pMatch[1]);
+  return { datum: new Date().toISOString(), gewicht, systolisch: syst, diastolisch: diast, puls };
+}
+
+/* ------------------ Storage & UI render ------------------ */
+function getEntries(){ return JSON.parse(localStorage.getItem('vitaldaten') || '[]'); }
+function setEntries(arr){ localStorage.setItem('vitaldaten', JSON.stringify(arr)); }
+
+function renderEntries(){
+  const ul = document.getElementById('entries');
+  const entries = getEntries();
+  ul.innerHTML = '';
+  entries.forEach((e, idx) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<div>
+      <strong>${new Date(e.datum).toLocaleString()}</strong><br>
+      Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm
+    </div>`;
+    const btn = document.createElement('button');
+    btn.className = 'delete-btn';
+    btn.textContent = '❌';
+    btn.onclick = () => {
+      entries.splice(idx,1);
+      setEntries(entries);
+      renderEntries();
+      updateChart();
+    };
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+}
+renderEntries();
+
+/* ------------------ Save / Buttons ------------------ */
+document.getElementById('start').onclick = () => {
+  if(!recognition){ alert('Spracherkennung nicht unterstützt.'); return; }
+  if(!isRecording){
+    recognition.start();
+    isRecording = true;
+  }
+};
+document.getElementById('stop').onclick = () => {
+  if(recognition && isRecording){ recognition.stop(); isRecording = false; }
+};
+document.getElementById('clear').onclick = () => { document.getElementById('recognized').value = ''; };
+
+document.getElementById('save').onclick = () => {
+  const txt = document.getElementById('recognized').value.trim();
+  const parsed = parseVitaldaten(txt);
+  if(!parsed){ alert('Keine Vitaldaten erkannt. Beispiel: "72,5 kg, Blutdruck 120 zu 80, Puls 65"'); return; }
+  const arr = getEntries();
+  arr.unshift(parsed);
+  setEntries(arr);
+  document.getElementById('recognized').value = '';
+  renderEntries();
+  updateChart();
+};
+
+/* ------------------ Chart setup ------------------ */
+const ctx = document.getElementById('vitalChart').getContext('2d');
+let vitalChart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: [], datasets: [] },
+  options: {
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{ legend:{ display:false }, tooltip:{ mode:'index', intersect:false } },
+    elements:{ point:{ radius:3 } },
+    interaction:{ mode:'nearest', axis:'x', intersect:false },
+    scales: {
+      x: {
+        ticks:{ maxRotation:0, autoSkip:false },
+        grid:{ display:false }
+      },
+      y: {
+        beginAtZero:false,
+        grid:{ color:'rgba(0,0,0,0.05)' }
+      }
+    }
+  }
+});
+
+/* ------------------ Timeframe label generators ------------------ */
+function labelsForRange(range, entries){
+  const now = new Date();
+  if(range === '7'){
+    const labels = [];
+    for(let i=6;i>=0;i--){
+      const d = new Date(now); d.setDate(now.getDate()-i);
+      labels.push({ key: toISODateStr(d), label: formatDDMM(d), date: d });
+    }
+    return labels;
+  }
+  if(range === '30'){
+    // 30 days, labels every 4 days (approx half-week)
+    const labels = [];
+    for(let i=29;i>=0;i--){
+      const d = new Date(now); d.setDate(now.getDate()-i);
+      labels.push(d);
+    }
+    // pick every 4th for label positions but maintain date keys for mapping
+    const out = [];
+    for(let i=0;i<labels.length;i+=4){
+      const d=labels[i];
+      out.push({ key: toISODateStr(d), label: formatDDMM(d), date:d });
+    }
+    // ensure last day included
+    const lastKey = toISODateStr(now);
+    if(!out.some(o=>o.key===lastKey)) out.push({ key:lastKey, label: formatDDMM(now), date: now });
+    return out;
+  }
+  if(range === '90'){
+    // 90 days, weekly labels (every 7 days)
+    const labels=[];
+    for(let i=89;i>=0;i--){
+      const d=new Date(now); d.setDate(now.getDate()-i);
+      labels.push(d);
+    }
+    const out=[];
+    for(let i=0;i<labels.length;i+=7){
+      const d=labels[i];
+      out.push({ key: toISODateStr(d), label: formatDDMM(d), date:d });
+    }
+    const lastKey = toISODateStr(now);
+    if(!out.some(o=>o.key===lastKey)) out.push({ key:lastKey, label: formatDDMM(now), date: now });
+    return out;
+  }
+  if(range === 'ytd'){
+    const year = now.getFullYear();
+    const out=[];
+    for(let m=0;m<=now.getMonth();m++){
+      const d=new Date(year,m,1);
+      out.push({ key: `${year}-${String(m+1).padStart(2,'0')}`, label: formatMMYY(d), date:d });
+    }
+    return out;
+  }
+  if(range === 'max'){
+    const entriesArr = entries.slice().sort((a,b)=>new Date(a.datum)-new Date(b.datum));
+    if(entriesArr.length===0){
+      // fallback to last 6 months
+      const out=[];
+      const earliest = new Date(); earliest.setMonth(earliest.getMonth()-5);
+      const nowMonth = new Date();
+      for(let d=new Date(earliest); d<=nowMonth; d.setMonth(d.getMonth()+1)){
+        out.push({ key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: formatMMYY(d), date:new Date(d) });
+      }
+      return out;
+    }
+    const first = new Date(entriesArr[0].datum);
+    const out=[];
+    const start = new Date(first.getFullYear(), first.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    for(let d=new Date(start); d<=end; d.setMonth(d.getMonth()+1)){
+      out.push({ key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: formatMMYY(d), date:new Date(d) });
+    }
+    return out;
+  }
+}
+
+/* ------------------ Map entries to label keys ------------------ */
+// For daily keys: use YYYY-MM-DD; for monthly keys use YYYY-MM
+function mapEntriesByKey(entries){
+  const byDay = {};
+  entries.forEach(e=>{
+    const d = new Date(e.datum);
+    const key = toISODateStr(d);
+    // keep the last entry of that day (entries are stored newest first)
+    if(!byDay[key]) byDay[key] = e;
+  });
+  const byMonth = {};
+  entries.forEach(e=>{
+    const d = new Date(e.datum);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if(!byMonth[key]) byMonth[key] = e;
+  });
+  return { byDay, byMonth };
+}
+
+/* ------------------ Compute chart data given metric and timeframe ------------------ */
+function computeSeries(metric, timeframe){
+  const entries = getEntries();
+  const labelsInfo = labelsForRange(timeframe, entries);
+  const mapping = mapEntriesByKey(entries);
+
+  const labels = labelsInfo.map(l=>l.label);
+  const data = [];
+  // For blood pressure we return two series (syst, diast)
+  if(metric === 'blutdruck'){
+    const syst = [];
+    const diast = [];
+    labelsInfo.forEach(l=>{
+      // month key or day key depending on timeframe
+      let key = l.key;
+      let val;
+      if(timeframe==='ytd' || timeframe==='max'){
+        val = mapping.byMonth[key];
+      } else {
+        val = mapping.byDay[key];
+      }
+      if(val){
+        syst.push(val.systolisch);
+        diast.push(val.diastolisch);
+      } else {
+        syst.push(null);
+        diast.push(null);
+      }
+    });
+    return { labels, datasets:[
+      { label:'Systolisch (mmHg)', data:syst, borderColor:'rgb(220,38,38)', backgroundColor:'rgba(220,38,38,0.12)', tension:0.2 },
+      { label:'Diastolisch (mmHg)', data:diast, borderColor:'rgb(245,158,11)', backgroundColor:'rgba(245,158,11,0.12)', tension:0.2 }
+    ]};
+  }
+
+  // gewicht or puls: single dataset
+  const arr = [];
+  labelsInfo.forEach(l=>{
+    let key = l.key;
+    let val;
+    if(timeframe==='ytd' || timeframe==='max') val = mapping.byMonth[key];
+    else val = mapping.byDay[key];
+    if(val){
+      arr.push(metric==='gewicht' ? val.gewicht : val.puls);
+    } else arr.push(null);
+  });
+  const dataset = {
+    label: metric==='gewicht' ? 'Gewicht (kg)' : 'Puls (bpm)',
+    data: arr,
+    borderColor: metric==='gewicht' ? 'rgb(14, 165, 233)' : 'rgb(16,185,129)',
+    backgroundColor: metric==='gewicht' ? 'rgba(14,165,233,0.12)' : 'rgba(16,185,129,0.12)',
+    tension:0.2
+  };
+  return { labels, datasets:[dataset] };
+}
+
+/* ------------------ Y axis config helpers ------------------ */
+function getYScaleOptions(metric){
+  if(metric==='blutdruck'){
+    return {
+      min:50, max:200, ticks:{ stepSize:25, callback: v => String(v) }
     };
   }
-
-  document.getElementById("start").onclick = () => {
-    if (!recognition) { alert("Spracherkennung nicht unterstützt."); return; }
-    if (!isRecording) { recognizedText = ""; recognition.start(); isRecording = true; }
-  };
-  document.getElementById("stop").onclick = () => {
-    if (recognition && isRecording) { recognition.stop(); isRecording = false; }
-  };
-
-  document.getElementById("clear").onclick = () => { recognizedText=""; };
-
-  // ------------------ Parser ------------------
-  function parseVitaldaten(text) {
-    text = (text || "").toLowerCase();
-    const g = text.match(/(\d{1,3}[.,]?\d?)\s*(kg|kilo)?/);
-    const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und| )\s*(\d{2,3})/);
-    const p = text.match(/puls\s*(\d{2,3})/) || text.match(/(\d{2,3})\s*bpm/);
-    if (!g || !bp || !p) return null;
-    const gewicht = parseFloat(g[1].replace(",", "."));
-    const syst = parseInt(bp[1]);
-    const diast = parseInt(bp[2]);
-    const puls = parseInt(p[1]);
-    return { datum: new Date().toISOString(), gewicht, systolisch: syst, diastolisch: diast, puls };
+  if(metric==='gewicht'){
+    // center around last non-null weight in filtered data
+    const entries = getEntries();
+    const last = entries.find(e=>typeof e.gewicht === 'number');
+    const center = last ? last.gewicht : 80;
+    const min = Math.floor(center - 2);
+    const max = Math.ceil(center + 2);
+    return { min:min, max:max, ticks:{ stepSize:1, callback: v => `${v}` } };
   }
-
-  // ------------------ LocalStorage & Rendering ------------------
-  function renderEntries() {
-    const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
-    const ul = document.getElementById("entries");
-    ul.innerHTML = "";
-    entries.forEach((e, idx) => {
-      const li = document.createElement("li");
-      li.innerHTML = `<div>
-          <strong>${new Date(e.datum).toLocaleString()}</strong><br>
-          Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm
-        </div>`;
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "❌";
-      delBtn.className = "delete-btn";
-      delBtn.onclick = () => { entries.splice(idx,1); localStorage.setItem("vitaldaten", JSON.stringify(entries)); renderEntries(); updateChart(); };
-      li.appendChild(delBtn);
-      ul.appendChild(li);
-    });
+  // puls
+  if(metric==='puls'){
+    const entries = getEntries();
+    const last = entries.find(e=>typeof e.puls === 'number');
+    const center = last ? last.puls : 60;
+    const min = Math.floor(center - 4);
+    const max = Math.ceil(center + 4);
+    return { min:min, max:max, ticks:{ stepSize:2, callback: v => `${v}` } };
   }
+  return {};
+}
 
-  document.getElementById("save").onclick = () => {
-    const parsed = parseVitaldaten(recognizedText);
-    if (!parsed) { alert("Keine Vitaldaten erkannt."); return; }
-    const arr = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
-    arr.unshift(parsed);
-    localStorage.setItem("vitaldaten", JSON.stringify(arr));
-    recognizedText = "";
-    renderEntries();
+/* ------------------ Update chart ------------------ */
+function updateChart(){
+  const metric = document.querySelector('input[name="metric"]:checked').value;
+  const timeframeBtn = document.querySelector('.timeframe-btn.active');
+  const range = timeframeBtn ? timeframeBtn.dataset.range : '7';
+  const series = computeSeries(metric, range);
+
+  vitalChart.data.labels = series.labels;
+  vitalChart.data.datasets = series.datasets;
+
+  // y scale config
+  const yOpt = getYScaleOptions(metric);
+  vitalChart.options.scales.y = {
+    ...vitalChart.options.scales.y,
+    min: yOpt.min,
+    max: yOpt.max,
+    ticks: yOpt.ticks
+  };
+
+  // x ticks formatting already set by labels
+  // for YTD/Max display shorter labels (month.year) already provided
+
+  vitalChart.update();
+}
+
+/* ------------------ Wire timeframe and metric buttons ------------------ */
+// timeframe buttons
+document.querySelectorAll('.timeframe-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.timeframe-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
     updateChart();
-  }
-
-  renderEntries();
-
-  // ------------------ Chart.js ------------------
-  const ctx = document.getElementById('vitalChart').getContext('2d');
-  let vitalChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels: [], datasets: [] },
-    options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
   });
+});
+// default active
+document.querySelector('.timeframe-btn[data-range="7"]').classList.add('active');
 
-  function updateChart() {
-    const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
-    const selectedMetrics = Array.from(document.querySelectorAll('.metric:checked')).map(c=>c.value);
-    const timeframe = document.querySelector('.timeframe-btn.active')?.dataset.range || 'max';
-    let filtered = entries.map(e => ({ ...e, date: new Date(e.datum) }));
+// metric radios
+document.querySelectorAll('input[name="metric"]').forEach(r=>{
+  r.addEventListener('change', ()=> updateChart());
+});
 
-    const now = new Date();
-    if(timeframe!=='max'){
-      let start = new Date();
-      if(timeframe==='7') start.setDate(now.getDate()-7);
-      if(timeframe==='30') start.setMonth(now.getMonth()-1);
-      if(timeframe==='90') start.setMonth(now.getMonth()-3);
-      if(timeframe==='ytd') start = new Date(now.getFullYear(),0,1);
-      filtered = filtered.filter(e=>new Date(e.datum)>=start);
-    }
+updateChart();
 
-    vitalChart.data.labels = filtered.map(e => new Date(e.datum).toLocaleDateString());
-    vitalChart.data.datasets = [];
-
-    if(selectedMetrics.includes('gewicht')){
-      vitalChart.data.datasets.push({
-        label:'Gewicht (kg)',
-        data:filtered.map(e=>e.gewicht),
-        borderColor:'blue', backgroundColor:'rgba(0,0,255,0.2)', tension:0.2
-      });
-    }
-    if(selectedMetrics.includes('blutdruck')){
-      vitalChart.data.datasets.push({
-        label:'Systolisch (mmHg)',
-        data:filtered.map(e=>e.systolisch),
-        borderColor:'red', backgroundColor:'rgba(255,0,0,0.2)', tension:0.2
-      });
-      vitalChart.data.datasets.push({
-        label:'Diastolisch (mmHg)',
-        data:filtered.map(e=>e.diastolisch),
-        borderColor:'orange', backgroundColor:'rgba(255,165,0,0.2)', tension:0.2
-      });
-    }
-    if(selectedMetrics.includes('puls')){
-      vitalChart.data.datasets.push({
-        label:'Puls (bpm)',
-        data:filtered.map(e=>e.puls),
-        borderColor:'green', backgroundColor:'rgba(0,128,0,0.2)', tension:0.2
-      });
-    }
-    vitalChart.update();
-  }
-
-  document.querySelectorAll('.metric').forEach(cb=>cb.addEventListener('change',updateChart));
-  document.querySelectorAll('.timeframe-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.querySelectorAll('.timeframe-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      updateChart();
-    });
-  });
-
-  // initial active timeframe
-  document.querySelector('.timeframe-btn[data-range="7"]').classList.add('active');
-  updateChart();
 </script>
-
 </body>
 </html>
