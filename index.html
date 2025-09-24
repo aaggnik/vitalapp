@@ -1,190 +1,217 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>VitalApp</title>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#2e7d32">
-
-  <!-- App Icons für iOS -->
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
-  <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png"> <!-- Fallback -->
-
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;margin:18px;background:#f7f7f7;color:#222}
-    h1{font-size:1.4em}
-    button{padding:10px;border-radius:8px;border:none;font-size:15px;margin:6px 4px;cursor:pointer}
-    #start{background:#2e7d32;color:#fff} #stop{background:#b71c1c;color:#fff}
-    #save{background:#1565c0;color:#fff} #clear{background:#6d4c41;color:#fff}
-    #recognized{padding:10px;background:#eee;border-radius:8px;min-height:48px}
-    textarea{width:100%;min-height:80px;padding:8px;border-radius:8px;border:1px solid #ddd;margin-top:8px}
-    ul{list-style:none;padding:0}
-    li{background:#fff;padding:10px;border-radius:8px;margin:6px 0;display:flex;justify-content:space-between;align-items:center}
-    .small{font-size:0.9em;color:#666}
-    .delete-btn{background:#d32f2f;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VitalApp Graph</title>
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; margin:20px; background:#f7f7f7; color:#222; }
+  h1 { font-size:1.5em; margin-bottom:10px; }
+  button { padding:10px 14px; border-radius:8px; border:none; font-size:15px; margin:5px; cursor:pointer; }
+  #start {background:#2e7d32;color:#fff} 
+  #stop {background:#b71c1c;color:#fff} 
+  #save {background:#1565c0;color:#fff} 
+  #clear {background:#6d4c41;color:#fff} 
+  #chartContainer { background:#fff; border-radius:10px; padding:10px; margin-bottom:20px; }
+  #entries { list-style:none; padding:0; margin-top:20px; }
+  li { background:#fff; padding:10px; border-radius:8px; margin:6px 0; display:flex; justify-content:space-between; align-items:center; }
+  .delete-btn { background:#d32f2f;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer; }
+  .checkboxes { margin-top:10px; }
+  .timeframes { margin-bottom:10px; }
+</style>
 </head>
 <body>
-  <h1>Vitaldaten (PWA)</h1>
-  <div id="recognized" aria-live="polite">Noch nichts erkannt…</div>
 
-  <div style="margin-top:8px">
-    <button id="start">🎤 Aufnehmen</button>
-    <button id="stop">⏹️ Stoppen</button>
-    <button id="save">💾 Speichern</button>
-    <button id="pasteToInput" title="In Eingabefeld übernehmen">✏️ In Formular übernehmen</button>
-    <button id="clear">🧹 Clear</button>
+<h1>Vitaldaten Graph</h1>
+
+<div>
+  <button id="start">🎤 Aufnehmen</button>
+  <button id="stop">⏹️ Stoppen</button>
+  <button id="save">💾 Speichern</button>
+  <button id="clear">🧹 Clear</button>
+</div>
+
+<div id="chartContainer">
+  <div class="timeframes">
+    <button class="timeframe-btn" data-range="7">1W</button>
+    <button class="timeframe-btn" data-range="30">1M</button>
+    <button class="timeframe-btn" data-range="90">3M</button>
+    <button class="timeframe-btn" data-range="ytd">YTD</button>
+    <button class="timeframe-btn" data-range="max">Max</button>
   </div>
 
-  <p class="small">Falls die Browser-Spracherkennung auf deinem iPhone nicht funktioniert: tippe in das Feld unten und nutze das <strong>iOS-Diktat</strong> (Mikrofon-Taste in der Tastatur).</p>
+  <canvas id="vitalChart"></canvas>
 
-  <textarea id="manualInput" placeholder="Oder hier sprechen/diktieren (Diktier-Taste auf iOS-Tastatur)"></textarea>
+  <div class="checkboxes">
+    <label><input type="checkbox" class="metric" value="gewicht" checked> Gewicht</label>
+    <label><input type="checkbox" class="metric" value="blutdruck" checked> Blutdruck</label>
+    <label><input type="checkbox" class="metric" value="puls" checked> Puls</label>
+  </div>
+</div>
 
-  <h2>Gespeicherte Einträge</h2>
-  <ul id="entries"></ul>
+<h2>Gespeicherte Einträge</h2>
+<ul id="entries"></ul>
 
-  <script>
-    // --------- Speech recognition mit längerem Einsprechen ----------
-    let recognition = null;
-    let isRecording = false;
-    let recognizedText = "";
+<script>
+  // ------------------ Spracherkennung ------------------
+  let recognition = null;
+  let isRecording = false;
+  let recognizedText = "";
 
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition = new SR();
-      recognition.lang = "de-DE";
-      recognition.continuous = true;      // dauerhaft zuhören
-      recognition.interimResults = true;  // Zwischenergebnisse zeigen
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SR();
+    recognition.lang = "de-DE";
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
-      recognition.onresult = (event) => {
-        let finalText = recognizedText; // bisher erkannter Text behalten
-        let interim = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalText += " " + transcript;   // endgültiges Ergebnis hinzufügen
-          } else {
-            interim += " " + transcript;     // Zwischenergebnis
-          }
+    recognition.onresult = (event) => {
+      let finalText = recognizedText;
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += " " + transcript;
+        } else {
+          interim += " " + transcript;
         }
+      }
+      recognizedText = finalText.trim();
+      console.log("Zwischentext:", finalText + interim);
+    };
+  }
 
-        recognizedText = finalText.trim();
-        document.getElementById("recognized").textContent =
-          (finalText + " " + interim).trim();
-      };
+  document.getElementById("start").onclick = () => {
+    if (!recognition) { alert("Spracherkennung nicht unterstützt."); return; }
+    if (!isRecording) { recognizedText = ""; recognition.start(); isRecording = true; }
+  };
+  document.getElementById("stop").onclick = () => {
+    if (recognition && isRecording) { recognition.stop(); isRecording = false; }
+  };
 
-      recognition.onerror = (e) => {
-        console.warn("Recognition error", e);
-      };
-    } else {
-      console.info("Keine Web Speech API im Browser verfügbar");
+  document.getElementById("clear").onclick = () => { recognizedText=""; };
+
+  // ------------------ Parser ------------------
+  function parseVitaldaten(text) {
+    text = (text || "").toLowerCase();
+    const g = text.match(/(\d{1,3}[.,]?\d?)\s*(kg|kilo)?/);
+    const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und| )\s*(\d{2,3})/);
+    const p = text.match(/puls\s*(\d{2,3})/) || text.match(/(\d{2,3})\s*bpm/);
+    if (!g || !bp || !p) return null;
+    const gewicht = parseFloat(g[1].replace(",", "."));
+    const syst = parseInt(bp[1]);
+    const diast = parseInt(bp[2]);
+    const puls = parseInt(p[1]);
+    return { datum: new Date().toISOString(), gewicht, systolisch: syst, diastolisch: diast, puls };
+  }
+
+  // ------------------ LocalStorage & Rendering ------------------
+  function renderEntries() {
+    const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
+    const ul = document.getElementById("entries");
+    ul.innerHTML = "";
+    entries.forEach((e, idx) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<div>
+          <strong>${new Date(e.datum).toLocaleString()}</strong><br>
+          Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm
+        </div>`;
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "❌";
+      delBtn.className = "delete-btn";
+      delBtn.onclick = () => { entries.splice(idx,1); localStorage.setItem("vitaldaten", JSON.stringify(entries)); renderEntries(); updateChart(); };
+      li.appendChild(delBtn);
+      ul.appendChild(li);
+    });
+  }
+
+  document.getElementById("save").onclick = () => {
+    const parsed = parseVitaldaten(recognizedText);
+    if (!parsed) { alert("Keine Vitaldaten erkannt."); return; }
+    const arr = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
+    arr.unshift(parsed);
+    localStorage.setItem("vitaldaten", JSON.stringify(arr));
+    recognizedText = "";
+    renderEntries();
+    updateChart();
+  }
+
+  renderEntries();
+
+  // ------------------ Chart.js ------------------
+  const ctx = document.getElementById('vitalChart').getContext('2d');
+  let vitalChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+  });
+
+  function updateChart() {
+    const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
+    const selectedMetrics = Array.from(document.querySelectorAll('.metric:checked')).map(c=>c.value);
+    const timeframe = document.querySelector('.timeframe-btn.active')?.dataset.range || 'max';
+    let filtered = entries.map(e => ({ ...e, date: new Date(e.datum) }));
+
+    const now = new Date();
+    if(timeframe!=='max'){
+      let start = new Date();
+      if(timeframe==='7') start.setDate(now.getDate()-7);
+      if(timeframe==='30') start.setMonth(now.getMonth()-1);
+      if(timeframe==='90') start.setMonth(now.getMonth()-3);
+      if(timeframe==='ytd') start = new Date(now.getFullYear(),0,1);
+      filtered = filtered.filter(e=>new Date(e.datum)>=start);
     }
 
-    document.getElementById("start").onclick = () => {
-      if (!recognition) { 
-        alert("Spracherkennung nicht unterstützt. Nutze das iOS-Diktat im Eingabefeld."); 
-        return; 
-      }
-      if (!isRecording) { 
-        recognizedText = ""; // beim Start zurücksetzen
-        recognition.start(); 
-        isRecording = true; 
-      }
-    };
+    vitalChart.data.labels = filtered.map(e => new Date(e.datum).toLocaleDateString());
+    vitalChart.data.datasets = [];
 
-    document.getElementById("stop").onclick = () => {
-      if (recognition && isRecording) { 
-        recognition.stop(); 
-        isRecording = false; 
-      }
-    };
-
-    // --------- Clear-Funktion ----------
-    document.getElementById("clear").onclick = () => {
-      recognizedText = "";
-      document.getElementById("recognized").textContent = "Noch nichts erkannt…";
-    };
-
-    // --------- Fallback: Übernehme erkannten Text ins Textfeld ----------
-    document.getElementById("pasteToInput").onclick = () => {
-      const txt = recognizedText || "";
-      const ta = document.getElementById("manualInput");
-      ta.value = (ta.value ? ta.value + "\n" : "") + txt;
-    };
-
-    // --------- Verbesserter Parser ----------
-    function parseVitaldaten(text) {
-      text = (text || "").toLowerCase();
-
-      const g = text.match(/(\d{1,3}[.,]?\d?)\s*(kg|kilo)?/);
-      const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und| )\s*(\d{2,3})/);
-      const p = text.match(/puls\s*(\d{2,3})/) ||
-                text.match(/(\d{2,3})\s*bpm/) ||
-                text.match(/puls\s*ist\s*(\d{2,3})/);
-
-      if (!g || !bp || !p) return null;
-
-      const gewicht = parseFloat(g[1].replace(",", "."));
-      const syst = parseInt(bp[1]);
-      const diast = parseInt(bp[2]);
-      const puls = parseInt(p[1]);
-
-      return {
-        datum: new Date().toISOString(),
-        gewicht,
-        systolisch: syst,
-        diastolisch: diast,
-        puls
-      };
-    }
-
-    // --------- Speichern / Rendern / Löschen ----------
-    function renderEntries() {
-      const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
-      const ul = document.getElementById("entries");
-      ul.innerHTML = "";
-      entries.forEach((e, idx) => {
-        const li = document.createElement("li");
-        li.innerHTML = `<div>
-            <strong>${new Date(e.datum).toLocaleString()}</strong><br>
-            Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm
-          </div>`;
-        const delBtn = document.createElement("button");
-        delBtn.textContent = "❌";
-        delBtn.className = "delete-btn";
-        delBtn.onclick = () => {
-          entries.splice(idx, 1);
-          localStorage.setItem("vitaldaten", JSON.stringify(entries));
-          renderEntries();
-        };
-        li.appendChild(delBtn);
-        ul.appendChild(li);
+    if(selectedMetrics.includes('gewicht')){
+      vitalChart.data.datasets.push({
+        label:'Gewicht (kg)',
+        data:filtered.map(e=>e.gewicht),
+        borderColor:'blue', backgroundColor:'rgba(0,0,255,0.2)', tension:0.2
       });
     }
-
-    document.getElementById("save").onclick = () => {
-      const manual = document.getElementById("manualInput").value.trim();
-      const textToParse = manual || recognizedText;
-      if (!textToParse) { alert("Kein Text zum Speichern."); return; }
-      const parsed = parseVitaldaten(textToParse);
-      if (!parsed) { alert("Keine Vitaldaten im Text erkannt. Beispiel: '72,5 kg, Blutdruck 120 zu 80, Puls 68'"); return; }
-      const arr = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
-      arr.unshift(parsed);
-      localStorage.setItem("vitaldaten", JSON.stringify(arr));
-      document.getElementById("manualInput").value = "";
-      renderEntries();
-    };
-
-    renderEntries();
-
-    // --------- Service Worker registrieren (für Offline) ----------
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js').catch(e => console.warn("SW failed", e));
+    if(selectedMetrics.includes('blutdruck')){
+      vitalChart.data.datasets.push({
+        label:'Systolisch (mmHg)',
+        data:filtered.map(e=>e.systolisch),
+        borderColor:'red', backgroundColor:'rgba(255,0,0,0.2)', tension:0.2
+      });
+      vitalChart.data.datasets.push({
+        label:'Diastolisch (mmHg)',
+        data:filtered.map(e=>e.diastolisch),
+        borderColor:'orange', backgroundColor:'rgba(255,165,0,0.2)', tension:0.2
+      });
     }
-  </script>
+    if(selectedMetrics.includes('puls')){
+      vitalChart.data.datasets.push({
+        label:'Puls (bpm)',
+        data:filtered.map(e=>e.puls),
+        borderColor:'green', backgroundColor:'rgba(0,128,0,0.2)', tension:0.2
+      });
+    }
+    vitalChart.update();
+  }
+
+  document.querySelectorAll('.metric').forEach(cb=>cb.addEventListener('change',updateChart));
+  document.querySelectorAll('.timeframe-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.timeframe-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      updateChart();
+    });
+  });
+
+  // initial active timeframe
+  document.querySelector('.timeframe-btn[data-range="7"]').classList.add('active');
+  updateChart();
+</script>
+
 </body>
 </html>
