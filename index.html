@@ -7,7 +7,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2e7d32">
 
-  <!-- App Icons für iOS (ohne 120x120) -->
+  <!-- App Icons für iOS -->
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
   <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
   <link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
@@ -17,12 +17,14 @@
     body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;margin:18px;background:#f7f7f7;color:#222}
     h1{font-size:1.4em}
     button{padding:10px;border-radius:8px;border:none;font-size:15px;margin:6px 4px;cursor:pointer}
-    #start{background:#2e7d32;color:#fff} #stop{background:#b71c1c;color:#fff} #save{background:#1565c0;color:#fff}
+    #start{background:#2e7d32;color:#fff} #stop{background:#b71c1c;color:#fff}
+    #save{background:#1565c0;color:#fff} #clear{background:#6d4c41;color:#fff}
     #recognized{padding:10px;background:#eee;border-radius:8px;min-height:48px}
     textarea{width:100%;min-height:80px;padding:8px;border-radius:8px;border:1px solid #ddd;margin-top:8px}
     ul{list-style:none;padding:0}
-    li{background:#fff;padding:10px;border-radius:8px;margin:6px 0}
+    li{background:#fff;padding:10px;border-radius:8px;margin:6px 0;display:flex;justify-content:space-between;align-items:center}
     .small{font-size:0.9em;color:#666}
+    .delete-btn{background:#d32f2f;color:#fff;border:none;border-radius:6px;padding:4px 8px;cursor:pointer}
   </style>
 </head>
 <body>
@@ -34,17 +36,18 @@
     <button id="stop">⏹️ Stoppen</button>
     <button id="save">💾 Speichern</button>
     <button id="pasteToInput" title="In Eingabefeld übernehmen">✏️ In Formular übernehmen</button>
+    <button id="clear">🧹 Clear</button>
   </div>
 
   <p class="small">Falls die Browser-Spracherkennung auf deinem iPhone nicht funktioniert: tippe in das Feld unten und nutze das <strong>iOS-Diktat</strong> (Mikrofon-Taste in der Tastatur).</p>
 
-  <textarea id="manualInput" placeholder="Oder hier sprechen/ditieren (Diktier-Taste auf iOS-Tastatur)"></textarea>
+  <textarea id="manualInput" placeholder="Oder hier sprechen/diktieren (Diktier-Taste auf iOS-Tastatur)"></textarea>
 
   <h2>Gespeicherte Einträge</h2>
   <ul id="entries"></ul>
 
   <script>
-    // --------- Speech recognition (falls verfügbar) ----------
+    // --------- Speech recognition mit längerem Einsprechen ----------
     let recognition = null;
     let isRecording = false;
     let recognizedText = "";
@@ -53,16 +56,25 @@
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognition = new SR();
       recognition.lang = "de-DE";
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.continuous = true;      // dauerhaft zuhören
+      recognition.interimResults = true;  // Zwischenergebnisse zeigen
 
       recognition.onresult = (event) => {
-        let text = "";
+        let finalText = recognizedText; // bisher erkannter Text behalten
+        let interim = "";
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          text += event.results[i][0].transcript;
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += " " + transcript;   // endgültiges Ergebnis hinzufügen
+          } else {
+            interim += " " + transcript;     // Zwischenergebnis
+          }
         }
-        recognizedText = text;
-        document.getElementById("recognized").textContent = text;
+
+        recognizedText = finalText.trim();
+        document.getElementById("recognized").textContent =
+          (finalText + " " + interim).trim();
       };
 
       recognition.onerror = (e) => {
@@ -73,11 +85,28 @@
     }
 
     document.getElementById("start").onclick = () => {
-      if (!recognition) { alert("Spracherkennung nicht unterstützt. Nutze das iOS-Diktat im Eingabefeld."); return; }
-      if (!isRecording) { recognition.start(); isRecording = true; }
+      if (!recognition) { 
+        alert("Spracherkennung nicht unterstützt. Nutze das iOS-Diktat im Eingabefeld."); 
+        return; 
+      }
+      if (!isRecording) { 
+        recognizedText = ""; // beim Start zurücksetzen
+        recognition.start(); 
+        isRecording = true; 
+      }
     };
+
     document.getElementById("stop").onclick = () => {
-      if (recognition && isRecording) { recognition.stop(); isRecording = false; }
+      if (recognition && isRecording) { 
+        recognition.stop(); 
+        isRecording = false; 
+      }
+    };
+
+    // --------- Clear-Funktion ----------
+    document.getElementById("clear").onclick = () => {
+      recognizedText = "";
+      document.getElementById("recognized").textContent = "Noch nichts erkannt…";
     };
 
     // --------- Fallback: Übernehme erkannten Text ins Textfeld ----------
@@ -91,13 +120,8 @@
     function parseVitaldaten(text) {
       text = (text || "").toLowerCase();
 
-      // Gewicht: 72,5 kg | 72 kg | 72 kilo
       const g = text.match(/(\d{1,3}[.,]?\d?)\s*(kg|kilo)?/);
-
-      // Blutdruck: 120/80 | 120 zu 80 | 120 80
       const bp = text.match(/(\d{2,3})\s*(?:\/|zu|und| )\s*(\d{2,3})/);
-
-      // Puls: "Puls 68" | "mein Puls ist 68" | "68 bpm"
       const p = text.match(/puls\s*(\d{2,3})/) ||
                 text.match(/(\d{2,3})\s*bpm/) ||
                 text.match(/puls\s*ist\s*(\d{2,3})/);
@@ -118,15 +142,26 @@
       };
     }
 
-    // --------- Speichern / Rendern ----------
+    // --------- Speichern / Rendern / Löschen ----------
     function renderEntries() {
       const entries = JSON.parse(localStorage.getItem("vitaldaten") || "[]");
       const ul = document.getElementById("entries");
       ul.innerHTML = "";
-      entries.forEach(e => {
+      entries.forEach((e, idx) => {
         const li = document.createElement("li");
-        li.innerHTML = `<strong>${new Date(e.datum).toLocaleString()}</strong><br>
-          Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm`;
+        li.innerHTML = `<div>
+            <strong>${new Date(e.datum).toLocaleString()}</strong><br>
+            Gewicht: ${e.gewicht} kg · Blutdruck: ${e.systolisch}/${e.diastolisch} mmHg · Puls: ${e.puls} bpm
+          </div>`;
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "❌";
+        delBtn.className = "delete-btn";
+        delBtn.onclick = () => {
+          entries.splice(idx, 1);
+          localStorage.setItem("vitaldaten", JSON.stringify(entries));
+          renderEntries();
+        };
+        li.appendChild(delBtn);
         ul.appendChild(li);
       });
     }
@@ -141,8 +176,6 @@
       arr.unshift(parsed);
       localStorage.setItem("vitaldaten", JSON.stringify(arr));
       document.getElementById("manualInput").value = "";
-      recognizedText = "";
-      document.getElementById("recognized").textContent = "Noch nichts erkannt…";
       renderEntries();
     };
 
