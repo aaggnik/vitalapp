@@ -18,11 +18,13 @@
       border-radius: 6px;
       cursor: pointer;
       font-size: 16px;
-      margin: 5px 0;
+      margin: 5px 5px 5px 0;
     }
     #record { background: #4caf50; color: white; }
     #stop { background: #f44336; color: white; }
+    #clear { background: #9e9e9e; color: white; }
     #save { background: #1565c0; color: white; }
+    #download { background: #ff9800; color: white; }
     #recognized {
       width: 100%;
       height: 80px;
@@ -64,7 +66,9 @@
   <br>
   <button id="record">Aufnahme starten</button>
   <button id="stop">Aufnahme stoppen</button>
+  <button id="clear">Clear</button>
   <button id="save">Speichern</button>
+  <button id="download" onclick="downloadData()">📥 Daten herunterladen</button>
 
   <div id="timeFilters">
     <button onclick="setRange('1w')">1W</button>
@@ -86,7 +90,6 @@
 
   <h2>Gespeicherte Einträge</h2>
   <ul id="entries"></ul>
-  <button onclick="downloadData()">📥 Daten herunterladen</button>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
@@ -140,19 +143,19 @@
       recognition.lang = "de-DE";
       recognition.interimResults = false;
       recognition.onresult = e => {
-        document.getElementById("recognized").value = e.results[0][0].transcript;
+        let finalTranscript = e.results[e.results.length - 1][0].transcript;
+        document.getElementById("recognized").value = finalTranscript;
       };
       recognition.start();
     };
 
     document.getElementById("stop").onclick = () => { if (recognition) recognition.stop(); };
+    document.getElementById("clear").onclick = () => { document.getElementById("recognized").value = ""; };
 
     document.getElementById("save").onclick = () => {
       const text = document.getElementById("recognized").value;
       const data = parseInput(text);
       if (data.weight || data.syst || data.pulse) {
-        // Testdaten simulieren: zurückdatieren
-        data.date = new Date(Date.now() - vitalData.length * 24*60*60*1000);
         vitalData.push(data);
         localStorage.setItem("vitalData", JSON.stringify(vitalData));
         renderEntries();
@@ -181,7 +184,7 @@
     });
 
     function updateChart() {
-      let filtered = [...vitalData]; // Filter nach Zeit könnte hier ergänzt werden
+      let filtered = [...vitalData];
       chart.data.labels = filtered.map(d => new Date(d.date).toLocaleDateString());
       chart.data.datasets = [];
 
@@ -227,7 +230,6 @@
           tension: 0.3,
           pointRadius: 3
         });
-        // ✅ feste Achse für Puls
         chart.options.scales.y.min = 55;
         chart.options.scales.y.max = 90;
         chart.options.scales.y.ticks = { stepSize: 5, callback: v => v + " bpm" };
