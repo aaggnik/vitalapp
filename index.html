@@ -76,7 +76,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: { x: { }, y: { } },
+        scales: { x: {}, y: {} },
         plugins: { legend: { display: false } }
       }
     });
@@ -139,6 +139,7 @@
           tension: 0.3,
           pointRadius: 3
         });
+        // ✅ Fix: Puls immer von 55–90 in 5er Schritten
         chart.options.scales.y.min = 55;
         chart.options.scales.y.max = 90;
         chart.options.scales.y.ticks = { stepSize: 5, callback: v => v + " bpm" };
