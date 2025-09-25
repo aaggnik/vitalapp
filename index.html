@@ -1,332 +1,282 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VitalApp</title>
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
-<link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
-<link rel="apple-touch-icon" sizes="167x167" href="apple-touch-icon-167.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-  html, body {
-    font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif;
-    margin: 10px;
-    background: #f7f7f7;
-    color: #222;
-    overflow-anchor: none;
-  }
-  h1 { font-size: 1.4em; margin-bottom: 10px; }
-  textarea {
-    width: 100%;
-    height: 80px;
-    padding: 8px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    font-size: 15px;
-    margin-bottom: 8px;
-    resize: vertical;
-  }
-  button {
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: none;
-    font-size: 14px;
-    margin: 3px;
-    cursor: pointer;
-  }
-  #start { background: #2e7d32; color: #fff; }
-  #stop { background: #b71c1c; color: #fff; }
-  #save { background: #1565c0; color: #fff; }
-  #clear { background: #6d4c41; color: #fff; }
-  #export { background: #f57c00; color: #fff; }
-  #chartBox {
-    background: #fff;
-    border-radius: 10px;
-    padding: 6px;
-    margin: 12px 0;
-  }
-  #vitalChart {
-    width: 100%;
-    height: 200px;
-  }
-  #timeFilters, #metricFilters {
-    margin: 5px 0;
-    text-align: center;
-  }
-  #timeFilters button, #metricFilters button {
-    background: #eee;
-    color: #222;
-  }
-  ul { list-style: none; padding: 0; }
-  li {
-    background: #fff;
-    margin: 5px 0;
-    padding: 6px 8px;
-    border-radius: 6px;
-    font-size: 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .deleteBtn {
-    background: #e53935;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>Vitaldaten App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="apple-touch-icon" sizes="120x120" href="icon.png">
+  <style>
+    body { font-family: sans-serif; margin: 12px; background: #f5f5f5; }
+    #recognized { width: 100%; height: 60px; margin-bottom: 8px; }
+    button { margin: 4px; padding: 6px 10px; border-radius: 6px; border: none; cursor: pointer; }
+    #chartBox { background: #fff; border-radius: 10px; padding: 4px; margin: 10px 0; }
+    #vitalChart { width: 100%; height: 200px; }
+    ul { list-style: none; padding: 0; }
+    li { background: #fff; margin: 4px 0; padding: 6px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+  </style>
 </head>
 <body>
-<h1>VitalApp</h1>
 
-<textarea id="recognized" placeholder="Hier sprechen oder diktieren..."></textarea>
+  <h2>Vitaldaten App</h2>
 
-<div>
-  <button id="start">🎤 Aufnahme starten</button>
+  <!-- Textfeld für Spracherkennung -->
+  <textarea id="recognized" placeholder="Hier sprechen/diktieren oder Text bearbeiten..."></textarea><br>
+
+  <button id="record">🎤 Aufnahme starten</button>
   <button id="stop">⏹️ Aufnahme stoppen</button>
   <button id="save">💾 Speichern</button>
-  <button id="clear">🧹 Clear</button>
-  <button id="export">📤 Exportieren</button>
-</div>
+  <button id="download">⬇️ Exportieren (CSV)</button>
 
-<div id="timeFilters">
-  <button onclick="setRange('1w')">1W</button>
-  <button onclick="setRange('1m')">1M</button>
-  <button onclick="setRange('3m')">3M</button>
-  <button onclick="setRange('ytd')">YTD</button>
-  <button onclick="setRange('max')">Max</button>
-</div>
+  <!-- Chart -->
+  <div id="chartBox">
+    <canvas id="vitalChart"></canvas>
+  </div>
 
-<div id="chartBox">
-  <canvas id="vitalChart"></canvas>
-</div>
+  <!-- Zeit-Filter -->
+  <div id="timeFilters">
+    <button onclick="setRange('1w')">1W</button>
+    <button onclick="setRange('1m')">1M</button>
+    <button onclick="setRange('3m')">3M</button>
+    <button onclick="setRange('ytd')">YTD</button>
+    <button onclick="setRange('max')">Max</button>
+  </div>
 
-<div id="metricFilters">
-  <button onclick="setMetric('weight')">Gewicht</button>
-  <button onclick="setMetric('bp')">Blutdruck</button>
-  <button onclick="setMetric('pulse')">Puls</button>
-</div>
+  <!-- Metrik-Filter -->
+  <div id="metricFilters">
+    <button onclick="setMetric('weight')">Gewicht</button>
+    <button onclick="setMetric('bp')">Blutdruck</button>
+    <button onclick="setMetric('pulse')">Puls</button>
+  </div>
 
-<h2>Gespeicherte Einträge</h2>
-<ul id="entries"></ul>
+  <!-- Verlauf -->
+  <h3>Gespeicherte Einträge</h3>
+  <ul id="entries"></ul>
 
-<script>
-let recognition;
-let isRecording = false;
-let vitalData = JSON.parse(localStorage.getItem("vitalData") || "[]");
-let currentMetric = "weight";
-let currentRange = "1w";
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // ------------------------------
+    // Lokale Datenhaltung
+    // ------------------------------
+    let vitalData = JSON.parse(localStorage.getItem("vitalData") || "[]");
+    let currentMetric = "weight";
+    let currentRange = "1w";
 
-// === Spracherkennung ===
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SR();
-  recognition.lang = "de-DE";
-  recognition.continuous = true;
-  recognition.interimResults = false;
+    function saveData() {
+      if (vitalData.length > 10000) vitalData.shift(); // max 10.000
+      localStorage.setItem("vitalData", JSON.stringify(vitalData));
+    }
 
-  recognition.onresult = (event) => {
-    let text = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      if (event.results[i].isFinal) {
-        text += event.results[i][0].transcript + " ";
+    // ------------------------------
+    // Chart Setup
+    // ------------------------------
+    const ctx = document.getElementById("vitalChart").getContext("2d");
+    let chart = new Chart(ctx, {
+      type: "line",
+      data: { labels: [], datasets: [] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { x: { }, y: { } },
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    function updateChart() {
+      let filtered = filterByRange(vitalData, currentRange);
+
+      chart.data.labels = filtered.map(d => formatDate(d.date, currentRange));
+      chart.data.datasets = [];
+
+      if (currentMetric === "weight") {
+        let values = filtered.map(d => d.weight).filter(v => v !== null);
+        chart.data.datasets.push({
+          label: "Gewicht",
+          data: values,
+          borderColor: "#1565c0",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3
+        });
+        if (values.length) {
+          let last = values[values.length - 1];
+          chart.options.scales.y.min = last - 2;
+          chart.options.scales.y.max = last + 2;
+          chart.options.scales.y.ticks = { stepSize: 1, callback: v => v + " kg" };
+        }
+      }
+
+      if (currentMetric === "bp") {
+        let values = filtered.map(d => d.syst).filter(v => v !== null);
+        let values2 = filtered.map(d => d.diast).filter(v => v !== null);
+        chart.data.datasets.push({
+          label: "Systolisch",
+          data: values,
+          borderColor: "#e53935",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3
+        });
+        chart.data.datasets.push({
+          label: "Diastolisch",
+          data: values2,
+          borderColor: "#43a047",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3
+        });
+        chart.options.scales.y.min = 50;
+        chart.options.scales.y.max = 200;
+        chart.options.scales.y.ticks = { stepSize: 25 };
+      }
+
+      if (currentMetric === "pulse") {
+        let values = filtered.map(d => d.pulse).filter(v => v !== null);
+        chart.data.datasets.push({
+          label: "Puls",
+          data: values,
+          borderColor: "#e67e22",
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3
+        });
+        chart.options.scales.y.min = 55;
+        chart.options.scales.y.max = 90;
+        chart.options.scales.y.ticks = { stepSize: 5, callback: v => v + " bpm" };
+      }
+
+      chart.update();
+    }
+
+    function formatDate(dateStr, range) {
+      let d = new Date(dateStr);
+      if (range === "ytd" || range === "max") {
+        return (d.getMonth()+1).toString().padStart(2,"0")+"."+d.getFullYear().toString().slice(2);
+      } else {
+        return d.getDate().toString().padStart(2,"0")+"."+(d.getMonth()+1).toString().padStart(2,"0");
       }
     }
-    document.getElementById("recognized").value += text.trim() + " ";
-  };
-}
 
-document.getElementById("start").onclick = () => {
-  if (recognition && !isRecording) {
-    document.getElementById("recognized").value = "";
-    recognition.start();
-    isRecording = true;
-  }
-};
-document.getElementById("stop").onclick = () => {
-  if (recognition && isRecording) {
-    recognition.stop();
-    isRecording = false;
-  }
-};
-document.getElementById("clear").onclick = () => {
-  document.getElementById("recognized").value = "";
-};
+    function filterByRange(data, range) {
+      let now = new Date();
+      let filtered = [];
+      if (range === "1w") {
+        let weekAgo = new Date(now - 7*24*60*60*1000);
+        filtered = data.filter(d => new Date(d.date) >= weekAgo);
+      } else if (range === "1m") {
+        let monthAgo = new Date(); monthAgo.setMonth(now.getMonth()-1);
+        filtered = data.filter(d => new Date(d.date) >= monthAgo);
+      } else if (range === "3m") {
+        let m3 = new Date(); m3.setMonth(now.getMonth()-3);
+        filtered = data.filter(d => new Date(d.date) >= m3);
+      } else if (range === "ytd") {
+        let startYear = new Date(now.getFullYear(),0,1);
+        filtered = data.filter(d => new Date(d.date) >= startYear);
+      } else {
+        filtered = data;
+      }
+      return filtered;
+    }
 
-// === Parser ===
-function parseInput(text) {
-  let gewicht = text.match(/(\d+)[,\.]?(\d*)\s?kg/);
-  let bp = text.match(/(\d{2,3})\s?(zu|\/)\s?(\d{2,3})/);
-  let puls = text.match(/puls\s?(\d{2,3})/i);
+    function setMetric(m) { currentMetric = m; updateChart(); }
+    function setRange(r) { currentRange = r; updateChart(); }
 
-  return {
-    id: Date.now(),
-    date: new Date(),
-    weight: gewicht ? parseFloat(gewicht[1] + "." + (gewicht[2]||"0")) : null,
-    syst: bp ? parseInt(bp[1]) : null,
-    diast: bp ? parseInt(bp[3]) : null,
-    pulse: puls ? parseInt(puls[1]) : null
-  };
-}
+    // ------------------------------
+    // Einträge rendern
+    // ------------------------------
+    function renderEntries() {
+      const list = document.getElementById("entries");
+      list.innerHTML = "";
+      vitalData.forEach((d,i) => {
+        let li = document.createElement("li");
+        li.innerHTML = `
+          <span>${new Date(d.date).toLocaleDateString()} 
+          | Gewicht: ${d.weight??"-"} kg 
+          | Blutdruck: ${d.syst??"-"}/${d.diast??"-"} 
+          | Puls: ${d.pulse??"-"}</span>
+          <button onclick="deleteEntry(${i})">🗑️</button>`;
+        list.appendChild(li);
+      });
+    }
 
-// === Speichern ===
-document.getElementById("save").onclick = () => {
-  const text = document.getElementById("recognized").value;
-  const data = parseInput(text);
+    function deleteEntry(index) {
+      vitalData.splice(index,1);
+      saveData();
+      renderEntries();
+      updateChart();
+    }
 
-  if (data.weight || data.syst || data.pulse) {
-    vitalData.push(data);
-    saveToStorage();
+    // ------------------------------
+    // Eingabe / Speichern
+    // ------------------------------
+    function parseInput(text) {
+      let weight = null, syst = null, diast = null, pulse = null;
+      let m;
+
+      m = text.match(/(\d+)[,\.](\d+)\s?kg/);
+      if (m) weight = parseFloat(m[1]+"."+m[2]);
+
+      m = text.match(/(\d{2,3})\s*(zu|\/|und)\s*(\d{2,3})/);
+      if (m) { syst = parseInt(m[1]); diast = parseInt(m[3]); }
+
+      m = text.match(/puls\s*(\d{2,3})/i);
+      if (m) pulse = parseInt(m[1]);
+
+      return { date: new Date(), weight, syst, diast, pulse };
+    }
+
+    document.getElementById("save").onclick = () => {
+      const text = document.getElementById("recognized").value;
+      const data = parseInput(text);
+      if (data.weight || data.syst || data.pulse) {
+        vitalData.push(data);
+        saveData();
+        renderEntries();
+        updateChart();
+      } else {
+        alert("Keine Vitaldaten erkannt.");
+      }
+    };
+
+    // ------------------------------
+    // CSV Export
+    // ------------------------------
+    document.getElementById("download").onclick = () => {
+      let csv = "Datum,Gewicht,Systolisch,Diastolisch,Puls\n";
+      vitalData.forEach(d => {
+        csv += `${new Date(d.date).toLocaleDateString()},${d.weight??""},${d.syst??""},${d.diast??""},${d.pulse??""}\n`;
+      });
+      let blob = new Blob([csv], { type: "text/csv" });
+      let url = URL.createObjectURL(blob);
+      let a = document.createElement("a");
+      a.href = url;
+      a.download = "vitaldaten.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    // ------------------------------
+    // Speech Recognition
+    // ------------------------------
+    let recognition;
+    if ("webkitSpeechRecognition" in window) {
+      recognition = new webkitSpeechRecognition();
+      recognition.lang = "de-DE";
+      recognition.continuous = true;
+      recognition.interimResults = false; // nur finale Ergebnisse
+      recognition.onresult = e => {
+        let transcript = Array.from(e.results).map(r => r[0].transcript).join(" ");
+        document.getElementById("recognized").value = transcript;
+      };
+    }
+
+    document.getElementById("record").onclick = () => { if (recognition) recognition.start(); };
+    document.getElementById("stop").onclick = () => { if (recognition) recognition.stop(); };
+
+    // ------------------------------
+    // Init
+    // ------------------------------
     renderEntries();
     updateChart();
-  } else {
-    alert("Keine Vitaldaten erkannt.");
-  }
-};
-
-// === Export ===
-document.getElementById("export").onclick = () => {
-  if (vitalData.length === 0) {
-    alert("Keine Daten zum Exportieren.");
-    return;
-  }
-  let csv = "Datum;Gewicht;Systolisch;Diastolisch;Puls\n";
-  vitalData.forEach(d => {
-    let date = new Date(d.date).toLocaleDateString("de-DE");
-    csv += `${date};${d.weight ?? ""};${d.syst ?? ""};${d.diast ?? ""};${d.pulse ?? ""}\n`;
-  });
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "vitaldaten.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-};
-
-// === Löschen ===
-function deleteEntry(id) {
-  vitalData = vitalData.filter(d => d.id !== id);
-  saveToStorage();
-  renderEntries();
-  updateChart();
-}
-
-// === Verlauf ===
-function renderEntries() {
-  const ul = document.getElementById("entries");
-  ul.innerHTML = "";
-  vitalData.forEach(d => {
-    let li = document.createElement("li");
-    let text = `${new Date(d.date).toLocaleDateString()}: `;
-    if (d.weight) text += `Gewicht ${d.weight}kg `;
-    if (d.syst) text += `Blutdruck ${d.syst}/${d.diast} `;
-    if (d.pulse) text += `Puls ${d.pulse} bpm`;
-
-    li.textContent = text;
-
-    let delBtn = document.createElement("button");
-    delBtn.textContent = "❌";
-    delBtn.className = "deleteBtn";
-    delBtn.onclick = () => deleteEntry(d.id);
-
-    li.appendChild(delBtn);
-    ul.appendChild(li);
-  });
-}
-
-// === Chart Setup ===
-const ctx = document.getElementById("vitalChart").getContext("2d");
-const chart = new Chart(ctx, {
-  type: "line",
-  data: { labels: [], datasets: [] },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      x: { ticks: { autoSkip: true, maxTicksLimit: 7 } },
-      y: { beginAtZero: false }
-    },
-    plugins: { legend: { display: true } }
-  }
-});
-
-function setMetric(m) { currentMetric = m; updateChart(); }
-function setRange(r) { currentRange = r; updateChart(); }
-
-// === Chart Update ===
-function updateChart() {
-  if (vitalData.length === 0) {
-    chart.data.labels = [];
-    chart.data.datasets = [];
-    chart.update();
-    return;
-  }
-
-  const now = new Date();
-  let filtered = vitalData;
-  if (currentRange === "1w") filtered = vitalData.filter(d => (now - new Date(d.date))/(1000*60*60*24) <= 7);
-  if (currentRange === "1m") filtered = vitalData.filter(d => (now - new Date(d.date))/(1000*60*60*24) <= 31);
-  if (currentRange === "3m") filtered = vitalData.filter(d => (now - new Date(d.date))/(1000*60*60*24) <= 93);
-  if (currentRange === "ytd") filtered = vitalData.filter(d => new Date(d.date).getFullYear() === now.getFullYear());
-
-  let labels = filtered.map(d => {
-    let dt = new Date(d.date);
-    if (currentRange === "ytd" || currentRange === "max") return `${String(dt.getMonth()+1).padStart(2,"0")}.${String(dt.getFullYear()).slice(2)}`;
-    else return `${String(dt.getDate()).padStart(2,"0")}.${String(dt.getMonth()+1).padStart(2,"0")}`;
-  });
-
-  chart.data.labels = labels;
-  chart.data.datasets = [];
-
-  if (currentMetric === "weight") {
-    let values = filtered.map(d => d.weight).filter(v => v !== null);
-    chart.data.datasets.push({ label: "Gewicht", data: values, borderColor: "#1565c0", tension: 0.3, fill: false, pointRadius: 3 });
-    if (values.length > 0) {
-      const last = values[values.length-1];
-      chart.options.scales.y.min = last-2;
-      chart.options.scales.y.max = last+2;
-      chart.options.scales.y.ticks = { stepSize: 1, callback: v => v+" kg" };
-    }
-  }
-
-  if (currentMetric === "pulse") {
-    let values = filtered.map(d => d.pulse).filter(v => v !== null);
-    chart.data.datasets.push({ label: "Puls", data: values, borderColor: "#e67e22", tension: 0.3, fill: false, pointRadius: 3 });
-    if (values.length > 0) {
-      const last = values[values.length-1];
-      chart.options.scales.y.min = last-4;
-      chart.options.scales.y.max = last+4;
-      chart.options.scales.y.ticks = { stepSize: 2, callback: v => v+" bpm" };
-    }
-  }
-
-  if (currentMetric === "bp") {
-    let syst = filtered.map(d => d.syst).filter(v => v !== null);
-    let diast = filtered.map(d => d.diast).filter(v => v !== null);
-    chart.data.datasets.push({ label: "Systolisch", data: syst, borderColor: "#1565c0", tension: 0.3, fill: false, pointRadius: 3 });
-    chart.data.datasets.push({ label: "Diastolisch", data: diast, borderColor: "#e53935", tension: 0.3, fill: false, pointRadius: 3 });
-    chart.options.scales.y.min = 50;
-    chart.options.scales.y.max = 200;
-    chart.options.scales.y.ticks = { stepSize: 25 };
-  }
-
-  chart.update();
-}
-
-// === localStorage speichern ===
-function saveToStorage() {
-  localStorage.setItem("vitalData", JSON.stringify(vitalData));
-}
-
-// Start
-renderEntries();
-updateChart();
-</script>
+  </script>
 </body>
 </html>
